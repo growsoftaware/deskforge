@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { listen } from "@tauri-apps/api/event";
   import { onMount } from "svelte";
 
   interface RemapStatus {
@@ -178,6 +179,16 @@
 
   onMount(() => {
     loadData();
+
+    // Listen for remap changes from global shortcuts or tray
+    const unlisten = listen<RemapStatus>("remap-changed", (event) => {
+      const updated = event.payload;
+      remaps = remaps.map((r) => (r.id === updated.id ? updated : r));
+    });
+
+    return () => {
+      unlisten.then((fn) => fn());
+    };
   });
 </script>
 

@@ -1,5 +1,5 @@
 use crate::{config, modules::keyboard::macros, modules::keyboard::remapper, popup, tray};
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutEvent, ShortcutState};
 
 /// Parses a human-readable binding string like "Ctrl+Shift+E" into a Shortcut.
@@ -157,6 +157,7 @@ pub fn handle_shortcut(app: &AppHandle, shortcut: &Shortcut, event: ShortcutEven
                             let icon = status.icon.as_deref().unwrap_or("⌨");
                             let _ = popup::show(app, &status.label, icon);
                             tray::refresh(app);
+                            let _ = app.emit("remap-changed", &status);
                         }
                     }
                 }

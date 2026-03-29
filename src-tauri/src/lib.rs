@@ -6,7 +6,7 @@ mod shortcuts;
 mod tray;
 
 use modules::keyboard::{devices, remapper};
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 #[tauri::command]
 fn get_config() -> config::Config {
@@ -30,6 +30,7 @@ fn toggle_remap(app: tauri::AppHandle, remap_id: String) -> Result<remapper::Rem
     let icon = status.icon.as_deref().unwrap_or("⌨");
     let _ = popup::show(&app, &status.label, icon);
     tray::refresh(&app);
+    let _ = app.emit("remap-changed", &status);
 
     Ok(status)
 }

@@ -1,3 +1,4 @@
+mod autostart;
 mod config;
 mod modules;
 mod popup;
@@ -109,6 +110,20 @@ fn get_macros() -> Vec<config::TextMacro> {
     config::load().keyboard.macros
 }
 
+#[tauri::command]
+fn get_autostart() -> bool {
+    autostart::is_enabled()
+}
+
+#[tauri::command]
+fn set_autostart(enabled: bool) -> Result<(), String> {
+    if enabled {
+        autostart::enable()
+    } else {
+        autostart::disable()
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -127,9 +142,15 @@ pub fn run() {
             update_macro,
             delete_macro,
             get_macros,
+            get_autostart,
+            set_autostart,
         ])
         .setup(|app| {
             let handle = app.handle().clone();
+
+            // Apply saved remap state from last session
+            remapper::apply_saved();
+
             tray::setup(&handle)?;
             shortcuts::register_all(&handle);
 

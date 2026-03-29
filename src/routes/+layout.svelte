@@ -1,12 +1,30 @@
 <script lang="ts">
   import "../app.css";
   import { page } from "$app/state";
+  import { invoke } from "@tauri-apps/api/core";
+  import { onMount } from "svelte";
 
   const modules = [
     { name: "Keyboard", path: "/keyboard", icon: "⌨" },
   ];
 
   let { children } = $props();
+  let autostart = $state(false);
+
+  onMount(async () => {
+    try {
+      autostart = await invoke<boolean>("get_autostart");
+    } catch {}
+  });
+
+  async function toggleAutostart() {
+    try {
+      await invoke("set_autostart", { enabled: !autostart });
+      autostart = !autostart;
+    } catch (e) {
+      console.error("Failed to toggle autostart:", e);
+    }
+  }
 </script>
 
 <div class="app-shell">
@@ -28,6 +46,10 @@
       {/each}
     </ul>
     <div class="sidebar-footer">
+      <label class="autostart-toggle">
+        <input type="checkbox" checked={autostart} onchange={toggleAutostart} />
+        <span>Iniciar com o sistema</span>
+      </label>
       <span class="version">v0.1.0</span>
     </div>
   </nav>
@@ -102,6 +124,21 @@
   .sidebar-footer {
     padding: 12px 16px;
     border-top: 1px solid #0f3460;
+  }
+
+  .autostart-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #888;
+    cursor: pointer;
+    margin-bottom: 8px;
+  }
+
+  .autostart-toggle input {
+    accent-color: #e94560;
+    cursor: pointer;
   }
 
   .version {

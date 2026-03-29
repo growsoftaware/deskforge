@@ -58,7 +58,7 @@
   :global(body) {
     margin: 0;
     padding: 0;
-    background: transparent;
+    background: #1e1e1e;
     overflow: hidden;
   }
 
@@ -81,12 +81,10 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    background: rgba(30, 30, 30, 0.9);
+    background: #1e1e1e;
     border-radius: 12px;
     padding: 12px 24px;
-    backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    border: 1px solid #333;
   }
 
   .popup-icon {

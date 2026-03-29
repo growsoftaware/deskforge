@@ -1,3 +1,5 @@
+use std::thread;
+use std::time::Duration;
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 
 use crate::config;
@@ -14,13 +16,13 @@ pub fn show(app: &AppHandle, text: &str, icon: &str) -> Result<(), String> {
         return Ok(());
     }
 
-    // Close any existing popup
+    // Close any existing popup first, with a small delay to avoid X11 race
     if let Some(existing) = app.get_webview_window(POPUP_LABEL) {
         let _ = existing.close();
+        thread::sleep(Duration::from_millis(100));
     }
 
-    // Get cursor position to determine which monitor to use
-    let (x, y) = get_popup_position(app, popup_cfg.margin_bottom)?;
+    let (x, y) = get_popup_position(app, popup_cfg.margin_bottom);
 
     let url = format!(
         "/popup?text={}&icon={}&display_ms={}&fade_ms={}",
@@ -37,8 +39,6 @@ pub fn show(app: &AppHandle, text: &str, icon: &str) -> Result<(), String> {
         .decorations(false)
         .always_on_top(true)
         .skip_taskbar(true)
-        .transparent(true)
-        .focused(false)
         .resizable(false)
         .build()
         .map_err(|e| format!("Failed to create popup window: {e}"))?;
@@ -46,30 +46,60 @@ pub fn show(app: &AppHandle, text: &str, icon: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn get_popup_position(app: &AppHandle, margin_bottom: u32) -> Result<(f64, f64), String> {
-    // Get cursor position from the main window
-    let main_window = app
+fn get_popup_position(app: &AppHandle, margin_bottom: u32) -> (f64, f64) {
+    // Try to get cursor position from any available window
+    let cursor_pos = app
         .get_webview_window("main")
-        .ok_or("Main window not found")?;
+        .and_then(|w| w.cursor_position().ok())
+        .or_else(|| {
+            // If main window is hidden, try to get position via xdotool
+            std::process::Command::new("xdotool")
+                .args(["getmouselocation", "--shell"])
+                .output()
+                .ok()
+                .and_then(|out| {
+                    let s = String::from_utf8_lossy(&out.stdout);
+                    let x = parse_xdotool_var(&s, "X=")?;
+                    let y = parse_xdotool_var(&s, "Y=")?;
+                    Some(tauri::PhysicalPosition::new(x, y))
+                })
+        });
 
-    let cursor = main_window
-        .cursor_position()
-        .map_err(|e| format!("Failed to get cursor position: {e}"))?;
+    // Try to find the monitor at cursor position
+    if let Some(cursor) = cursor_pos {
+        if let Some(window) = app.get_webview_window("main") {
+            if let Ok(Some(monitor)) = window.monitor_from_point(cursor.x, cursor.y) {
+                let scale = monitor.scale_factor();
+                let mon_pos = monitor.position().to_logical::<f64>(scale);
+                let mon_size = monitor.size().to_logical::<f64>(scale);
+                let x = mon_pos.x + (mon_size.width - POPUP_WIDTH) / 2.0;
+                let y = mon_pos.y + mon_size.height - POPUP_HEIGHT - margin_bottom as f64;
+                return (x, y);
+            }
+        }
+    }
 
-    // Find which monitor the cursor is on
-    let monitor = main_window
-        .monitor_from_point(cursor.x, cursor.y)
-        .map_err(|e| format!("Failed to get monitor: {e}"))?
-        .ok_or("No monitor found at cursor position")?;
+    // Fallback: try primary monitor
+    if let Some(window) = app.get_webview_window("main") {
+        if let Ok(Some(monitor)) = window.primary_monitor() {
+            let scale = monitor.scale_factor();
+            let mon_pos = monitor.position().to_logical::<f64>(scale);
+            let mon_size = monitor.size().to_logical::<f64>(scale);
+            let x = mon_pos.x + (mon_size.width - POPUP_WIDTH) / 2.0;
+            let y = mon_pos.y + mon_size.height - POPUP_HEIGHT - margin_bottom as f64;
+            return (x, y);
+        }
+    }
 
-    let monitor_pos = monitor.position().to_logical::<f64>(monitor.scale_factor());
-    let monitor_size = monitor.size().to_logical::<f64>(monitor.scale_factor());
+    // Last resort: center-ish on a 1920x1080 screen
+    (860.0, 940.0)
+}
 
-    // Center horizontally on monitor, position above bottom margin
-    let x = monitor_pos.x + (monitor_size.width - POPUP_WIDTH) / 2.0;
-    let y = monitor_pos.y + monitor_size.height - POPUP_HEIGHT - margin_bottom as f64;
-
-    Ok((x, y))
+fn parse_xdotool_var(output: &str, prefix: &str) -> Option<f64> {
+    output
+        .lines()
+        .find(|l| l.starts_with(prefix))
+        .and_then(|l| l.trim_start_matches(prefix).parse().ok())
 }
 
 /// Simple URL encoding for query params

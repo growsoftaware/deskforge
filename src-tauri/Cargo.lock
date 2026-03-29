@@ -706,11 +706,13 @@ dependencies = [
 name = "deskforge"
 version = "0.1.0"
 dependencies = [
+ "dirs",
  "serde",
  "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-opener",
+ "toml 0.8.2",
 ]
 
 [[package]]

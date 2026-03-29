@@ -119,5 +119,11 @@ class PopupOverlay(Gtk.Window):
 if __name__ == "__main__":
     text = sys.argv[1] if len(sys.argv) > 1 else "Hello"
     icon = sys.argv[2] if len(sys.argv) > 2 else None
+    if len(sys.argv) > 3:
+        DISPLAY_MS = int(sys.argv[3])
+    if len(sys.argv) > 4:
+        FADE_MS = int(sys.argv[4])
+    if len(sys.argv) > 5:
+        BOTTOM_MARGIN = int(sys.argv[5])
     PopupOverlay(text, icon)
     Gtk.main()

@@ -1,11 +1,11 @@
 mod config;
 mod modules;
 mod popup;
+mod shortcuts;
 mod tray;
 
 use modules::keyboard::remapper;
 use tauri::Manager;
-use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
 #[tauri::command]
 fn get_config() -> config::Config {
@@ -26,7 +26,6 @@ fn get_remap_statuses() -> Vec<remapper::RemapStatus> {
 fn toggle_remap(app: tauri::AppHandle, remap_id: String) -> Result<remapper::RemapStatus, String> {
     let status = remapper::toggle(&remap_id)?;
 
-    // Show popup with the new state
     let icon = status.icon.as_deref().unwrap_or("⌨");
     let _ = popup::show(&app, &status.label, icon);
     tray::refresh(&app);
@@ -34,23 +33,88 @@ fn toggle_remap(app: tauri::AppHandle, remap_id: String) -> Result<remapper::Rem
     Ok(status)
 }
 
+#[tauri::command]
+fn add_macro(
+    app: tauri::AppHandle,
+    id: String,
+    name: String,
+    trigger: String,
+    text: String,
+    method: String,
+) -> Result<(), String> {
+    let mut cfg = config::load();
+
+    // Check for duplicate ID
+    if cfg.keyboard.macros.iter().any(|m| m.id == id) {
+        return Err(format!("Macro with id '{id}' already exists"));
+    }
+
+    cfg.keyboard.macros.push(config::TextMacro {
+        id,
+        name,
+        trigger,
+        text,
+        method,
+    });
+    config::save(&cfg);
+    shortcuts::register_all(&app);
+    Ok(())
+}
+
+#[tauri::command]
+fn update_macro(
+    app: tauri::AppHandle,
+    id: String,
+    name: String,
+    trigger: String,
+    text: String,
+    method: String,
+) -> Result<(), String> {
+    let mut cfg = config::load();
+
+    let mac = cfg
+        .keyboard
+        .macros
+        .iter_mut()
+        .find(|m| m.id == id)
+        .ok_or_else(|| format!("Macro '{id}' not found"))?;
+
+    mac.name = name;
+    mac.trigger = trigger;
+    mac.text = text;
+    mac.method = method;
+
+    config::save(&cfg);
+    shortcuts::register_all(&app);
+    Ok(())
+}
+
+#[tauri::command]
+fn delete_macro(app: tauri::AppHandle, id: String) -> Result<(), String> {
+    let mut cfg = config::load();
+    let before = cfg.keyboard.macros.len();
+    cfg.keyboard.macros.retain(|m| m.id != id);
+
+    if cfg.keyboard.macros.len() == before {
+        return Err(format!("Macro '{id}' not found"));
+    }
+
+    config::save(&cfg);
+    shortcuts::register_all(&app);
+    Ok(())
+}
+
+#[tauri::command]
+fn get_macros() -> Vec<config::TextMacro> {
+    config::load().keyboard.macros
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
-                .with_handler(|app, shortcut, event| {
-                    if event.state == ShortcutState::Pressed {
-                        let super_escape =
-                            Shortcut::new(Some(Modifiers::SUPER), Code::Escape);
-                        if shortcut == &super_escape {
-                            if let Ok(status) = remapper::toggle("capslock-escape") {
-                                let icon = status.icon.as_deref().unwrap_or("⌨");
-                                let _ = popup::show(app, &status.label, icon);
-                            }
-                        }
-                    }
-                })
+                .with_handler(shortcuts::handle_shortcut)
                 .build(),
         )
         .plugin(tauri_plugin_opener::init())
@@ -59,16 +123,15 @@ pub fn run() {
             save_config,
             get_remap_statuses,
             toggle_remap,
+            add_macro,
+            update_macro,
+            delete_macro,
+            get_macros,
         ])
         .setup(|app| {
             let handle = app.handle().clone();
             tray::setup(&handle)?;
-
-            // Register global shortcut: Super+Escape to toggle CapsLock
-            let super_escape = Shortcut::new(Some(Modifiers::SUPER), Code::Escape);
-            if let Err(e) = app.global_shortcut().register(super_escape) {
-                eprintln!("Failed to register Super+Escape shortcut: {e}");
-            }
+            shortcuts::register_all(&handle);
 
             // Hide window on close instead of quitting (minimize to tray)
             let window = app.get_webview_window("main").unwrap();

@@ -1,5 +1,6 @@
 mod config;
 mod modules;
+mod popup;
 mod tray;
 
 use modules::keyboard::remapper;
@@ -21,8 +22,14 @@ fn get_remap_statuses() -> Vec<remapper::RemapStatus> {
 }
 
 #[tauri::command]
-fn toggle_remap(remap_id: String) -> Result<remapper::RemapStatus, String> {
-    remapper::toggle(&remap_id)
+fn toggle_remap(app: tauri::AppHandle, remap_id: String) -> Result<remapper::RemapStatus, String> {
+    let status = remapper::toggle(&remap_id)?;
+
+    // Show popup with the new state
+    let icon = status.icon.as_deref().unwrap_or("⌨");
+    let _ = popup::show(&app, &status.label, icon);
+
+    Ok(status)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

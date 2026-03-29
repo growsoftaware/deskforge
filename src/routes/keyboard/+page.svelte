@@ -11,6 +11,14 @@
     label: string;
   }
 
+  interface DeviceFix {
+    id: string;
+    name: string;
+    description: string;
+    active: boolean;
+    detected: boolean;
+  }
+
   interface TextMacro {
     id: string;
     name: string;
@@ -21,8 +29,10 @@
 
   let remaps: RemapStatus[] = $state([]);
   let macrosList: TextMacro[] = $state([]);
+  let deviceFixes: DeviceFix[] = $state([]);
   let loading = $state(true);
   let toggling = $state<string | null>(null);
+  let togglingDevice = $state<string | null>(null);
 
   // Macro editor state
   let editing = $state(false);
@@ -36,12 +46,14 @@
 
   async function loadData() {
     try {
-      const [r, m] = await Promise.all([
+      const [r, m, d] = await Promise.all([
         invoke<RemapStatus[]>("get_remap_statuses"),
         invoke<TextMacro[]>("get_macros"),
+        invoke<DeviceFix[]>("get_device_fixes"),
       ]);
       remaps = r;
       macrosList = m;
+      deviceFixes = d;
     } catch (e) {
       console.error("Failed to load data:", e);
     } finally {
@@ -58,6 +70,20 @@
       console.error("Failed to toggle remap:", e);
     } finally {
       toggling = null;
+    }
+  }
+
+  async function handleDeviceToggle(fixId: string) {
+    togglingDevice = fixId;
+    try {
+      const nowActive = await invoke<boolean>("toggle_device_fix", { id: fixId });
+      deviceFixes = deviceFixes.map((f) =>
+        f.id === fixId ? { ...f, active: nowActive } : f,
+      );
+    } catch (e) {
+      console.error("Failed to toggle device fix:", e);
+    } finally {
+      togglingDevice = null;
     }
   }
 
@@ -197,6 +223,38 @@
       </div>
     {/if}
   </section>
+
+  <!-- Device Fixes Section -->
+  {#if deviceFixes.some((f) => f.detected)}
+    <section class="section">
+      <h3>Dispositivos</h3>
+      <div class="card-list">
+        {#each deviceFixes.filter((f) => f.detected) as fix}
+          <div class="card" class:active={fix.active}>
+            <div class="card-left">
+              <span class="card-icon">🔧</span>
+              <div class="card-info">
+                <span class="card-title">{fix.name}</span>
+                <span class="card-status" class:status-on={fix.active}>
+                  {fix.description}
+                  {#if fix.active}— ativo{/if}
+                </span>
+              </div>
+            </div>
+            <label class="toggle">
+              <input
+                type="checkbox"
+                checked={fix.active}
+                disabled={togglingDevice === fix.id}
+                onchange={() => handleDeviceToggle(fix.id)}
+              />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        {/each}
+      </div>
+    </section>
+  {/if}
 
   <!-- Macros Section -->
   <section class="section">

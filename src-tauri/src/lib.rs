@@ -5,7 +5,7 @@ mod popup;
 mod shortcuts;
 mod tray;
 
-use modules::keyboard::remapper;
+use modules::keyboard::{devices, remapper};
 use tauri::Manager;
 
 #[tauri::command]
@@ -111,6 +111,29 @@ fn get_macros() -> Vec<config::TextMacro> {
 }
 
 #[tauri::command]
+fn get_device_fixes() -> Vec<devices::DeviceFix> {
+    devices::get_all()
+}
+
+#[tauri::command]
+fn toggle_device_fix(id: String) -> Result<bool, String> {
+    match id.as_str() {
+        "nuphy-fkeys" => {
+            let fixes = devices::get_all();
+            let is_active = fixes.iter().find(|f| f.id == id).map(|f| f.active).unwrap_or(false);
+            if is_active {
+                devices::disable_fkeys()?;
+                Ok(false)
+            } else {
+                devices::enable_fkeys()?;
+                Ok(true)
+            }
+        }
+        _ => Err(format!("Unknown device fix: {id}")),
+    }
+}
+
+#[tauri::command]
 fn get_autostart() -> bool {
     autostart::is_enabled()
 }
@@ -142,6 +165,8 @@ pub fn run() {
             update_macro,
             delete_macro,
             get_macros,
+            get_device_fixes,
+            toggle_device_fix,
             get_autostart,
             set_autostart,
         ])

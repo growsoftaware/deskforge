@@ -115,7 +115,10 @@ pub fn toggle_option(option: &str) -> Result<bool, String> {
 
 /// Maps a remap source+target to the corresponding XKB option string.
 pub fn remap_to_xkb_option(source: &str, target: &str) -> Option<String> {
-    match (source.to_lowercase().as_str(), target.to_lowercase().as_str()) {
+    match (
+        source.to_lowercase().as_str(),
+        target.to_lowercase().as_str(),
+    ) {
         ("capslock", "escape") => Some("caps:escape".to_string()),
         ("capslock", "backspace") => Some("caps:backspace".to_string()),
         ("capslock", "ctrl_l") | ("capslock", "control") => Some("caps:ctrl_modifier".to_string()),

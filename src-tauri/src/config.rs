@@ -86,13 +86,27 @@ pub struct TextMacro {
     pub method: String,
 }
 
-fn default_true() -> bool { true }
-fn default_theme() -> String { "system".into() }
-fn default_position() -> String { "bottom-center".into() }
-fn default_display_ms() -> u64 { 1500 }
-fn default_fade_ms() -> u64 { 500 }
-fn default_margin_bottom() -> u32 { 80 }
-fn default_method() -> String { "clipboard".into() }
+fn default_true() -> bool {
+    true
+}
+fn default_theme() -> String {
+    "system".into()
+}
+fn default_position() -> String {
+    "bottom-center".into()
+}
+fn default_display_ms() -> u64 {
+    1500
+}
+fn default_fade_ms() -> u64 {
+    500
+}
+fn default_margin_bottom() -> u32 {
+    80
+}
+fn default_method() -> String {
+    "clipboard".into()
+}
 
 impl Default for Config {
     fn default() -> Self {

@@ -5,6 +5,7 @@ mod tray;
 
 use modules::keyboard::remapper;
 use tauri::Manager;
+use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
 #[tauri::command]
 fn get_config() -> config::Config {
@@ -28,6 +29,7 @@ fn toggle_remap(app: tauri::AppHandle, remap_id: String) -> Result<remapper::Rem
     // Show popup with the new state
     let icon = status.icon.as_deref().unwrap_or("⌨");
     let _ = popup::show(&app, &status.label, icon);
+    tray::refresh(&app);
 
     Ok(status)
 }
@@ -35,6 +37,22 @@ fn toggle_remap(app: tauri::AppHandle, remap_id: String) -> Result<remapper::Rem
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, shortcut, event| {
+                    if event.state == ShortcutState::Pressed {
+                        let super_escape =
+                            Shortcut::new(Some(Modifiers::SUPER), Code::Escape);
+                        if shortcut == &super_escape {
+                            if let Ok(status) = remapper::toggle("capslock-escape") {
+                                let icon = status.icon.as_deref().unwrap_or("⌨");
+                                let _ = popup::show(app, &status.label, icon);
+                            }
+                        }
+                    }
+                })
+                .build(),
+        )
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             get_config,
@@ -45,6 +63,12 @@ pub fn run() {
         .setup(|app| {
             let handle = app.handle().clone();
             tray::setup(&handle)?;
+
+            // Register global shortcut: Super+Escape to toggle CapsLock
+            let super_escape = Shortcut::new(Some(Modifiers::SUPER), Code::Escape);
+            if let Err(e) = app.global_shortcut().register(super_escape) {
+                eprintln!("Failed to register Super+Escape shortcut: {e}");
+            }
 
             // Hide window on close instead of quitting (minimize to tray)
             let window = app.get_webview_window("main").unwrap();

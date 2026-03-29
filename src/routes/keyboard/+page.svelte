@@ -2,27 +2,43 @@
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
 
-  interface Remap {
+  interface RemapStatus {
     id: string;
     source: string;
     target: string;
     active: boolean;
     icon: string | null;
-    label_on: string;
-    label_off: string;
+    label: string;
   }
 
-  interface Config {
-    keyboard: {
-      enabled: boolean;
-      remaps: Remap[];
-    };
+  let remaps: RemapStatus[] = $state([]);
+  let loading = $state(true);
+  let toggling = $state<string | null>(null);
+
+  async function loadStatuses() {
+    try {
+      remaps = await invoke<RemapStatus[]>("get_remap_statuses");
+    } catch (e) {
+      console.error("Failed to load remap statuses:", e);
+    } finally {
+      loading = false;
+    }
   }
 
-  let config: Config | null = $state(null);
+  async function handleToggle(remapId: string) {
+    toggling = remapId;
+    try {
+      const updated = await invoke<RemapStatus>("toggle_remap", { remapId });
+      remaps = remaps.map((r) => (r.id === updated.id ? updated : r));
+    } catch (e) {
+      console.error("Failed to toggle remap:", e);
+    } finally {
+      toggling = null;
+    }
+  }
 
-  onMount(async () => {
-    config = await invoke<Config>("get_config");
+  onMount(() => {
+    loadStatuses();
   });
 </script>
 
@@ -34,28 +50,35 @@
 
   <section class="section">
     <h3>Remapeamentos</h3>
-    {#if config}
+    {#if loading}
+      <p class="loading">Carregando...</p>
+    {:else if remaps.length === 0}
+      <p class="empty-state">Nenhum remapeamento configurado.</p>
+    {:else}
       <div class="card-list">
-        {#each config.keyboard.remaps as remap}
-          <div class="card">
+        {#each remaps as remap}
+          <div class="card" class:active={remap.active}>
             <div class="card-left">
               <span class="card-icon">{remap.icon ?? "⌨"}</span>
               <div class="card-info">
                 <span class="card-title">{remap.source} → {remap.target}</span>
-                <span class="card-status">
-                  {remap.active ? remap.label_on : remap.label_off}
+                <span class="card-status" class:status-on={remap.active}>
+                  {remap.label}
                 </span>
               </div>
             </div>
             <label class="toggle">
-              <input type="checkbox" checked={remap.active} disabled />
+              <input
+                type="checkbox"
+                checked={remap.active}
+                disabled={toggling === remap.id}
+                onchange={() => handleToggle(remap.id)}
+              />
               <span class="toggle-slider"></span>
             </label>
           </div>
         {/each}
       </div>
-    {:else}
-      <p class="loading">Carregando...</p>
     {/if}
   </section>
 
@@ -120,6 +143,10 @@
     border-color: #e94560;
   }
 
+  .card.active {
+    border-color: #e9456044;
+  }
+
   .card-left {
     display: flex;
     align-items: center;
@@ -145,6 +172,10 @@
     font-size: 12px;
     color: #888;
     margin-top: 2px;
+  }
+
+  .card-status.status-on {
+    color: #e94560;
   }
 
   .toggle {
@@ -188,6 +219,10 @@
   .toggle input:checked + .toggle-slider::before {
     transform: translateX(20px);
     background: #fff;
+  }
+
+  .toggle input:disabled {
+    cursor: wait;
   }
 
   .loading {

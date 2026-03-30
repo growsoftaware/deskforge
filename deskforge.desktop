@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=DeskForge
+Comment=Desktop utility hub — keyboard remapping, shortcuts, text macros
+Exec=/home/ndr/deskforge/src-tauri/target/debug/deskforge
+Icon=/home/ndr/deskforge/src-tauri/icons/icon.png
+Terminal=false
+StartupNotify=true
+Categories=Utility;Settings;

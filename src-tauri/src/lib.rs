@@ -138,6 +138,22 @@ fn toggle_device_fix(id: String) -> Result<bool, String> {
 }
 
 #[tauri::command]
+fn launch_app(command: String, terminal: bool) -> Result<(), String> {
+    if terminal {
+        std::process::Command::new("alacritty")
+            .args(["-e", "bash", "-c", &command])
+            .spawn()
+            .map_err(|e| format!("Failed to launch in terminal: {e}"))?;
+    } else {
+        std::process::Command::new("bash")
+            .args(["-c", &command])
+            .spawn()
+            .map_err(|e| format!("Failed to launch: {e}"))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
 fn get_autostart() -> bool {
     autostart::is_enabled()
 }
@@ -171,6 +187,7 @@ pub fn run() {
             get_macros,
             get_device_fixes,
             toggle_device_fix,
+            launch_app,
             get_autostart,
             set_autostart,
         ])

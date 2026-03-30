@@ -6,6 +6,7 @@
 
   const modules = [
     { name: "Keyboard", path: "/keyboard", icon: "⌨" },
+    { name: "Apps", path: "/apps", icon: "🚀" },
   ];
 
   let { children } = $props();

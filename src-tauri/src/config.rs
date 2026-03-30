@@ -46,6 +46,8 @@ pub struct KeyboardConfig {
     pub shortcuts: Vec<Shortcut>,
     #[serde(default)]
     pub macros: Vec<TextMacro>,
+    #[serde(default)]
+    pub macro_buttons: Vec<MacroButton>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -74,6 +76,17 @@ pub struct Shortcut {
 pub enum ShortcutAction {
     #[serde(rename = "toggle_remap")]
     ToggleRemap { remap_id: String },
+    #[serde(rename = "execute_macro")]
+    ExecuteMacro { macro_id: String },
+    #[serde(rename = "run_command")]
+    RunCommand { command: String },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MacroButton {
+    pub slot: u8, // 1-8, maps to F13-F20
+    pub name: String,
+    pub action: ShortcutAction,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -162,6 +175,7 @@ impl Default for KeyboardConfig {
                 },
             }],
             macros: vec![],
+            macro_buttons: vec![],
         }
     }
 }

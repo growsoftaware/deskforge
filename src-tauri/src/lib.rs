@@ -112,6 +112,46 @@ fn get_macros() -> Vec<config::TextMacro> {
 }
 
 #[tauri::command]
+fn get_macro_buttons() -> Vec<config::MacroButton> {
+    config::load().keyboard.macro_buttons
+}
+
+#[tauri::command]
+fn set_macro_button(
+    app: tauri::AppHandle,
+    slot: u8,
+    name: String,
+    action: config::ShortcutAction,
+) -> Result<(), String> {
+    let mut cfg = config::load();
+
+    // Update or insert
+    if let Some(btn) = cfg.keyboard.macro_buttons.iter_mut().find(|b| b.slot == slot) {
+        btn.name = name;
+        btn.action = action;
+    } else {
+        cfg.keyboard.macro_buttons.push(config::MacroButton {
+            slot,
+            name,
+            action,
+        });
+    }
+
+    config::save(&cfg);
+    shortcuts::register_all(&app);
+    Ok(())
+}
+
+#[tauri::command]
+fn remove_macro_button(app: tauri::AppHandle, slot: u8) -> Result<(), String> {
+    let mut cfg = config::load();
+    cfg.keyboard.macro_buttons.retain(|b| b.slot != slot);
+    config::save(&cfg);
+    shortcuts::register_all(&app);
+    Ok(())
+}
+
+#[tauri::command]
 fn get_device_fixes() -> Vec<devices::DeviceFix> {
     devices::get_all()
 }
@@ -166,6 +206,9 @@ pub fn run() {
             update_macro,
             delete_macro,
             get_macros,
+            get_macro_buttons,
+            set_macro_button,
+            remove_macro_button,
             get_device_fixes,
             toggle_device_fix,
             get_autostart,

@@ -20,6 +20,17 @@
     detected: boolean;
   }
 
+  interface MacroButton {
+    slot: number;
+    name: string;
+    action: ShortcutAction;
+  }
+
+  type ShortcutAction =
+    | { type: "toggle_remap"; remap_id: string }
+    | { type: "execute_macro"; macro_id: string }
+    | { type: "run_command"; command: string };
+
   interface TextMacro {
     id: string;
     name: string;
@@ -30,10 +41,23 @@
 
   let remaps: RemapStatus[] = $state([]);
   let macrosList: TextMacro[] = $state([]);
+  let macroButtons: MacroButton[] = $state([]);
   let deviceFixes: DeviceFix[] = $state([]);
+  let hasNuphy = $derived(deviceFixes.some((f) => f.detected));
   let loading = $state(true);
   let toggling = $state<string | null>(null);
   let togglingDevice = $state<string | null>(null);
+
+  // Macro button editor
+  let editingBtn = $state<number | null>(null);
+  let btnActionType = $state<"toggle_remap" | "execute_macro" | "run_command" | "paste_text">("paste_text");
+  let btnName = $state("");
+  let btnRemapId = $state("capslock-escape");
+  let btnMacroId = $state("");
+  let btnCommand = $state("");
+  let btnText = $state("");
+  let btnMethod = $state("clipboard");
+  let savingBtn = $state(false);
 
   // Macro editor state
   let editing = $state(false);
@@ -47,14 +71,16 @@
 
   async function loadData() {
     try {
-      const [r, m, d] = await Promise.all([
+      const [r, m, d, mb] = await Promise.all([
         invoke<RemapStatus[]>("get_remap_statuses"),
         invoke<TextMacro[]>("get_macros"),
         invoke<DeviceFix[]>("get_device_fixes"),
+        invoke<MacroButton[]>("get_macro_buttons"),
       ]);
       remaps = r;
       macrosList = m;
       deviceFixes = d;
+      macroButtons = mb;
     } catch (e) {
       console.error("Failed to load data:", e);
     } finally {
@@ -85,6 +111,97 @@
       console.error("Failed to toggle device fix:", e);
     } finally {
       togglingDevice = null;
+    }
+  }
+
+  function openBtnEditor(slot: number) {
+    const existing = macroButtons.find((b) => b.slot === slot);
+    editingBtn = slot;
+    if (existing) {
+      btnName = existing.name;
+      const a = existing.action;
+      if (a.type === "toggle_remap") {
+        btnActionType = "toggle_remap";
+        btnRemapId = a.remap_id;
+      } else if (a.type === "execute_macro") {
+        btnActionType = "execute_macro";
+        btnMacroId = a.macro_id;
+      } else if (a.type === "run_command") {
+        btnActionType = "run_command";
+        btnCommand = a.command;
+      }
+    } else {
+      btnName = `G${slot}`;
+      btnActionType = "paste_text";
+      btnRemapId = "capslock-escape";
+      btnMacroId = "";
+      btnCommand = "";
+      btnText = "";
+      btnMethod = "clipboard";
+    }
+  }
+
+  async function saveBtnConfig() {
+    if (!btnName.trim() || editingBtn === null) return;
+    savingBtn = true;
+    try {
+      let action: ShortcutAction;
+      if (btnActionType === "toggle_remap") {
+        action = { type: "toggle_remap", remap_id: btnRemapId };
+      } else if (btnActionType === "execute_macro") {
+        action = { type: "execute_macro", macro_id: btnMacroId };
+      } else if (btnActionType === "run_command") {
+        action = { type: "run_command", command: btnCommand };
+      } else {
+        // paste_text: create an inline macro and reference it
+        const macroId = `btn-${editingBtn}-macro`;
+        // Create or update the backing text macro
+        try {
+          await invoke("delete_macro", { id: macroId });
+        } catch { /* might not exist */ }
+        await invoke("add_macro", {
+          id: macroId,
+          name: `${btnName} (auto)`,
+          trigger: "disabled",
+          text: btnText,
+          method: btnMethod,
+        });
+        action = { type: "execute_macro", macro_id: macroId };
+      }
+      await invoke("set_macro_button", {
+        slot: editingBtn,
+        name: btnName.trim(),
+        action,
+      });
+      macroButtons = await invoke<MacroButton[]>("get_macro_buttons");
+      macrosList = await invoke<TextMacro[]>("get_macros");
+      editingBtn = null;
+    } catch (e) {
+      console.error("Failed to save macro button:", e);
+      alert("Erro: " + e);
+    } finally {
+      savingBtn = false;
+    }
+  }
+
+  async function removeBtnConfig(slot: number) {
+    try {
+      await invoke("remove_macro_button", { slot });
+      macroButtons = await invoke<MacroButton[]>("get_macro_buttons");
+    } catch (e) {
+      console.error("Failed to remove macro button:", e);
+    }
+  }
+
+  function getBtnConfig(slot: number): MacroButton | undefined {
+    return macroButtons.find((b) => b.slot === slot);
+  }
+
+  function describeAction(action: ShortcutAction): string {
+    switch (action.type) {
+      case "toggle_remap": return `Toggle ${action.remap_id}`;
+      case "execute_macro": return `Macro: ${action.macro_id}`;
+      case "run_command": return action.command.length > 30 ? action.command.slice(0, 30) + "..." : action.command;
     }
   }
 
@@ -267,6 +384,101 @@
     </section>
   {/if}
 
+  <!-- Macro Buttons Section -->
+  {#if hasNuphy}
+    <section class="section">
+      <h3>Macro Buttons (NuPhy Field75)</h3>
+      <div class="card-list">
+        {#each [1, 2, 3, 4, 5, 6, 7, 8] as slot}
+          {@const btn = getBtnConfig(slot)}
+          {#if editingBtn === slot}
+            <div class="editor-card">
+              <div class="editor-title">G{slot} (F{12 + slot})</div>
+              <div class="field">
+                <label for="btn-name">Nome</label>
+                <input id="btn-name" type="text" bind:value={btnName} placeholder="Ex: Toggle CapsLock" />
+              </div>
+              <div class="field">
+                <label for="btn-action">Ação</label>
+                <select id="btn-action" bind:value={btnActionType}>
+                  <option value="paste_text">Colar texto</option>
+                  <option value="toggle_remap">Toggle remap</option>
+                  <option value="execute_macro">Executar macro existente</option>
+                  <option value="run_command">Executar comando</option>
+                </select>
+              </div>
+              {#if btnActionType === "toggle_remap"}
+                <div class="field">
+                  <label for="btn-remap">Remap</label>
+                  <select id="btn-remap" bind:value={btnRemapId}>
+                    {#each remaps as r}
+                      <option value={r.id}>{r.source} → {r.target}</option>
+                    {/each}
+                  </select>
+                </div>
+              {:else if btnActionType === "execute_macro"}
+                <div class="field">
+                  <label for="btn-macro">Macro</label>
+                  <select id="btn-macro" bind:value={btnMacroId}>
+                    {#each macrosList as m}
+                      <option value={m.id}>{m.name}</option>
+                    {/each}
+                  </select>
+                </div>
+              {:else if btnActionType === "run_command"}
+                <div class="field">
+                  <label for="btn-cmd">Comando shell</label>
+                  <input id="btn-cmd" type="text" bind:value={btnCommand} placeholder="Ex: notify-send 'Hello'" />
+                </div>
+              {:else if btnActionType === "paste_text"}
+                <div class="field">
+                  <label for="btn-text">Texto</label>
+                  <textarea id="btn-text" bind:value={btnText} rows="3" placeholder="Texto que será colado"></textarea>
+                </div>
+                <div class="field">
+                  <label for="btn-method">Método</label>
+                  <select id="btn-method" bind:value={btnMethod}>
+                    <option value="clipboard">Clipboard (Ctrl+V)</option>
+                    <option value="type">Simular digitação</option>
+                  </select>
+                </div>
+              {/if}
+              <div class="editor-actions">
+                <button class="btn-cancel" onclick={() => (editingBtn = null)}>Cancelar</button>
+                <button class="btn-save" onclick={saveBtnConfig} disabled={savingBtn}>
+                  {savingBtn ? "Salvando..." : "Salvar"}
+                </button>
+              </div>
+            </div>
+          {:else}
+            <div class="card" class:active={btn !== undefined}>
+              <div class="card-left">
+                <span class="card-icon-badge">G{slot}</span>
+                <div class="card-info">
+                  {#if btn}
+                    <span class="card-title">{btn.name}</span>
+                    <span class="card-status">{describeAction(btn.action)}</span>
+                  {:else}
+                    <span class="card-title dim">Não configurado</span>
+                    <span class="card-status">F{12 + slot}</span>
+                  {/if}
+                </div>
+              </div>
+              <div class="card-actions">
+                <button class="btn-icon" onclick={() => openBtnEditor(slot)} title="Configurar">
+                  {btn ? "✏️" : "⚙️"}
+                </button>
+                {#if btn}
+                  <button class="btn-icon btn-delete" onclick={() => removeBtnConfig(slot)} title="Remover">🗑</button>
+                {/if}
+              </div>
+            </div>
+          {/if}
+        {/each}
+      </div>
+    </section>
+  {/if}
+
   <!-- Macros Section -->
   <section class="section">
     <div class="section-header">
@@ -440,6 +652,29 @@
     gap: 14px;
     min-width: 0;
     flex: 1;
+  }
+
+  .card-icon-badge {
+    background: #0f3460;
+    color: #e94560;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 6px 8px;
+    border-radius: 6px;
+    font-family: monospace;
+    flex-shrink: 0;
+  }
+
+  .editor-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #e94560;
+    margin-bottom: 14px;
+    font-family: monospace;
+  }
+
+  .dim {
+    opacity: 0.4;
   }
 
   .card-icon {

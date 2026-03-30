@@ -150,48 +150,6 @@ pub fn register_all(app: &AppHandle) {
         }
     }
 
-    // Register macro button triggers (learned keys)
-    for btn in &cfg.keyboard.macro_buttons {
-        if let Some(shortcut) = parse_binding(&btn.trigger) {
-            if let Err(e) = gs.register(shortcut) {
-                eprintln!(
-                    "Failed to register macro button G{} ({}): {e}",
-                    btn.slot, btn.trigger
-                );
-            }
-        }
-    }
-}
-
-/// Execute a ShortcutAction
-fn execute_action(app: &AppHandle, action: &config::ShortcutAction, cfg: &config::Config) {
-    match action {
-        config::ShortcutAction::ToggleRemap { remap_id } => {
-            if let Ok(status) = remapper::toggle(remap_id) {
-                let icon = status.icon.as_deref().unwrap_or("⌨");
-                let _ = popup::show(app, &status.label, icon);
-                tray::refresh(app);
-                let _ = app.emit("remap-changed", &status);
-            }
-        }
-        config::ShortcutAction::ExecuteMacro { macro_id } => {
-            if let Some(mac) = cfg.keyboard.macros.iter().find(|m| m.id == *macro_id) {
-                if let Err(e) = macros::execute(&mac.text, &mac.method) {
-                    eprintln!("Macro '{}' failed: {e}", mac.name);
-                }
-            } else {
-                eprintln!("Macro '{macro_id}' not found");
-            }
-        }
-        config::ShortcutAction::RunCommand { command } => {
-            if let Err(e) = std::process::Command::new("bash")
-                .args(["-c", command])
-                .spawn()
-            {
-                eprintln!("Command failed: {e}");
-            }
-        }
-    }
 }
 
 /// Global shortcut handler — dispatches to the right action.
@@ -206,7 +164,16 @@ pub fn handle_shortcut(app: &AppHandle, shortcut: &Shortcut, event: ShortcutEven
     for shortcut_cfg in &cfg.keyboard.shortcuts {
         if let Some(parsed) = parse_binding(&shortcut_cfg.binding) {
             if shortcut == &parsed {
-                execute_action(app, &shortcut_cfg.action, &cfg);
+                match &shortcut_cfg.action {
+                    config::ShortcutAction::ToggleRemap { remap_id } => {
+                        if let Ok(status) = remapper::toggle(remap_id) {
+                            let icon = status.icon.as_deref().unwrap_or("⌨");
+                            let _ = popup::show(app, &status.label, icon);
+                            tray::refresh(app);
+                            let _ = app.emit("remap-changed", &status);
+                        }
+                    }
+                }
                 return;
             }
         }
@@ -219,16 +186,6 @@ pub fn handle_shortcut(app: &AppHandle, shortcut: &Shortcut, event: ShortcutEven
                 if let Err(e) = macros::execute(&mac.text, &mac.method) {
                     eprintln!("Macro '{}' failed: {e}", mac.name);
                 }
-                return;
-            }
-        }
-    }
-
-    // Check macro button triggers (learned keys)
-    for btn in &cfg.keyboard.macro_buttons {
-        if let Some(parsed) = parse_binding(&btn.trigger) {
-            if shortcut == &parsed {
-                execute_action(app, &btn.action, &cfg);
                 return;
             }
         }

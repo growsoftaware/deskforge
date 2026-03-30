@@ -5,7 +5,7 @@ mod popup;
 mod shortcuts;
 mod tray;
 
-use modules::keyboard::{devices, keycapture, remapper};
+use modules::keyboard::{devices, remapper};
 use tauri::{Emitter, Manager};
 
 #[tauri::command]
@@ -46,7 +46,6 @@ fn add_macro(
 ) -> Result<(), String> {
     let mut cfg = config::load();
 
-    // Check for duplicate ID
     if cfg.keyboard.macros.iter().any(|m| m.id == id) {
         return Err(format!("Macro with id '{id}' already exists"));
     }
@@ -112,82 +111,6 @@ fn get_macros() -> Vec<config::TextMacro> {
 }
 
 #[tauri::command]
-fn get_macro_buttons() -> Vec<config::MacroButton> {
-    config::load().keyboard.macro_buttons
-}
-
-#[tauri::command]
-fn set_macro_button(
-    app: tauri::AppHandle,
-    slot: u8,
-    name: String,
-    trigger: String,
-    action: config::ShortcutAction,
-) -> Result<(), String> {
-    let mut cfg = config::load();
-
-    // Update or insert
-    if let Some(btn) = cfg.keyboard.macro_buttons.iter_mut().find(|b| b.slot == slot) {
-        btn.name = name;
-        btn.trigger = trigger;
-        btn.action = action;
-    } else {
-        cfg.keyboard.macro_buttons.push(config::MacroButton {
-            slot,
-            name,
-            trigger,
-            action,
-        });
-    }
-
-    config::save(&cfg);
-    shortcuts::register_all(&app);
-    Ok(())
-}
-
-#[tauri::command]
-fn remove_macro_button(app: tauri::AppHandle, slot: u8) -> Result<(), String> {
-    let mut cfg = config::load();
-    cfg.keyboard.macro_buttons.retain(|b| b.slot != slot);
-    config::save(&cfg);
-    shortcuts::register_all(&app);
-    Ok(())
-}
-
-#[tauri::command]
-fn capture_key(app: tauri::AppHandle) -> Result<String, String> {
-    use tauri_plugin_global_shortcut::GlobalShortcutExt;
-    // Unregister all shortcuts temporarily so xev can see the keys
-    let _ = app.global_shortcut().unregister_all();
-
-    let key = keycapture::capture_next_key(10);
-
-    // Re-register shortcuts
-    shortcuts::register_all(&app);
-
-    let key = key?;
-    Ok(keycapture::keysym_to_binding(&key))
-}
-
-#[tauri::command]
-fn test_macro_buttons(app: tauri::AppHandle) -> Result<(), String> {
-    // Register F13-F20 temporarily for testing (shortcuts::register_all will re-register properly)
-    use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Shortcut};
-    let gs = app.global_shortcut();
-    let test_keys = [
-        Code::F13, Code::F14, Code::F15, Code::F16,
-        Code::F17, Code::F18, Code::F19, Code::F20,
-    ];
-    for (i, code) in test_keys.iter().enumerate() {
-        let shortcut = Shortcut::new(None, *code);
-        if gs.register(shortcut).is_ok() {
-            eprintln!("Test: registered F{} for G{}", 13 + i, i + 1);
-        }
-    }
-    Ok(())
-}
-
-#[tauri::command]
 fn get_device_fixes() -> Vec<devices::DeviceFix> {
     devices::get_all()
 }
@@ -197,7 +120,11 @@ fn toggle_device_fix(id: String) -> Result<bool, String> {
     match id.as_str() {
         "nuphy-fkeys" => {
             let fixes = devices::get_all();
-            let is_active = fixes.iter().find(|f| f.id == id).map(|f| f.active).unwrap_or(false);
+            let is_active = fixes
+                .iter()
+                .find(|f| f.id == id)
+                .map(|f| f.active)
+                .unwrap_or(false);
             if is_active {
                 devices::disable_fkeys()?;
                 Ok(false)
@@ -242,11 +169,6 @@ pub fn run() {
             update_macro,
             delete_macro,
             get_macros,
-            get_macro_buttons,
-            set_macro_button,
-            remove_macro_button,
-            capture_key,
-            test_macro_buttons,
             get_device_fixes,
             toggle_device_fix,
             get_autostart,
@@ -255,13 +177,11 @@ pub fn run() {
         .setup(|app| {
             let handle = app.handle().clone();
 
-            // Apply saved remap state from last session
             remapper::apply_saved();
 
             tray::setup(&handle)?;
             shortcuts::register_all(&handle);
 
-            // Hide window on close instead of quitting (minimize to tray)
             let window = app.get_webview_window("main").unwrap();
             window.on_window_event(move |event| {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
@@ -277,8 +197,6 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|_app, event| {
-            // Prevent app from exiting when last window closes
-            // (popup closes while main window is hidden in tray)
             if let tauri::RunEvent::ExitRequested { api, .. } = event {
                 api.prevent_exit();
             }

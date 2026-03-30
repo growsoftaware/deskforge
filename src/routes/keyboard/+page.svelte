@@ -59,6 +59,10 @@
   let btnMethod = $state("clipboard");
   let savingBtn = $state(false);
 
+  // Setup wizard
+  let setupMode = $state(false);
+  let detectedSlots = $state<Set<number>>(new Set());
+
   // Macro editor state
   let editing = $state(false);
   let editId = $state<string | null>(null);
@@ -294,17 +298,39 @@
     }
   }
 
+  async function startSetup() {
+    setupMode = true;
+    detectedSlots = new Set();
+    try {
+      await invoke("test_macro_buttons");
+    } catch (e) {
+      console.error("Failed to start test:", e);
+    }
+  }
+
+  function stopSetup() {
+    setupMode = false;
+    // Re-register normal shortcuts
+    loadData();
+  }
+
   onMount(() => {
     loadData();
 
-    // Listen for remap changes from global shortcuts or tray
-    const unlisten = listen<RemapStatus>("remap-changed", (event) => {
+    const unlisten1 = listen<RemapStatus>("remap-changed", (event) => {
       const updated = event.payload;
       remaps = remaps.map((r) => (r.id === updated.id ? updated : r));
     });
 
+    const unlisten2 = listen<number>("macro-button-detected", (event) => {
+      if (setupMode) {
+        detectedSlots = new Set([...detectedSlots, event.payload]);
+      }
+    });
+
     return () => {
-      unlisten.then((fn) => fn());
+      unlisten1.then((fn) => fn());
+      unlisten2.then((fn) => fn());
     };
   });
 </script>
@@ -387,7 +413,47 @@
   <!-- Macro Buttons Section -->
   {#if hasNuphy}
     <section class="section">
-      <h3>Macro Buttons (NuPhy Field75)</h3>
+      <div class="section-header">
+        <h3>Macro Buttons (NuPhy Field75)</h3>
+        {#if !setupMode}
+          <button class="btn-setup" onclick={startSetup}>Configurar Teclado</button>
+        {/if}
+      </div>
+
+      {#if setupMode}
+        <div class="setup-wizard">
+          <div class="setup-header">
+            <h4>Configurar G-Keys</h4>
+            <button class="btn-cancel" onclick={stopSetup}>Fechar</button>
+          </div>
+          <div class="setup-steps">
+            <p><strong>1.</strong> Abra <a href="https://drive.nuphy.io/" target="_blank">drive.nuphy.io</a> no Chrome</p>
+            <p><strong>2.</strong> Conecte o Field75 e clique "Access Authorization"</p>
+            <p><strong>3.</strong> Em <strong>CONFIGURE → KEYMAPS</strong>, selecione cada G-key</p>
+            <p><strong>4.</strong> Remapeie cada botão para a tecla correspondente:</p>
+            <div class="slot-grid">
+              {#each [1, 2, 3, 4, 5, 6, 7, 8] as slot}
+                <div class="slot-item" class:detected={detectedSlots.has(slot)}>
+                  <span class="slot-badge">G{slot}</span>
+                  <span class="slot-arrow">→</span>
+                  <span class="slot-key">F{12 + slot}</span>
+                  {#if detectedSlots.has(slot)}
+                    <span class="slot-ok">OK</span>
+                  {/if}
+                </div>
+              {/each}
+            </div>
+            <p><strong>5.</strong> Salve no NuPhyIO, depois pressione cada G-key aqui para verificar</p>
+            <p class="setup-status">
+              {detectedSlots.size}/8 verificados
+              {#if detectedSlots.size === 8}
+                — Todos configurados!
+              {/if}
+            </p>
+          </div>
+        </div>
+      {/if}
+
       <div class="card-list">
         {#each [1, 2, 3, 4, 5, 6, 7, 8] as slot}
           {@const btn = getBtnConfig(slot)}
@@ -671,6 +737,111 @@
     color: #e94560;
     margin-bottom: 14px;
     font-family: monospace;
+  }
+
+  .btn-setup {
+    background: #0f3460;
+    color: #e0e0e0;
+    border: 1px solid #1a3a6e;
+    border-radius: 8px;
+    padding: 6px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .btn-setup:hover {
+    background: #1a3a6e;
+  }
+
+  .setup-wizard {
+    background: #16213e;
+    border: 1px solid #e94560;
+    border-radius: 10px;
+    padding: 18px;
+    margin-bottom: 12px;
+  }
+
+  .setup-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+
+  .setup-header h4 {
+    font-size: 15px;
+    font-weight: 700;
+    color: #e94560;
+  }
+
+  .setup-steps p {
+    font-size: 13px;
+    color: #c0c0c0;
+    margin-bottom: 8px;
+    line-height: 1.5;
+  }
+
+  .setup-steps a {
+    color: #e94560;
+    text-decoration: underline;
+  }
+
+  .slot-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin: 12px 0;
+  }
+
+  .slot-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #1a1a2e;
+    border: 1px solid #0f3460;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 12px;
+    transition: border-color 0.2s;
+  }
+
+  .slot-item.detected {
+    border-color: #4caf50;
+    background: #1a2e1a;
+  }
+
+  .slot-badge {
+    background: #0f3460;
+    color: #e94560;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 11px;
+  }
+
+  .slot-arrow {
+    color: #555;
+  }
+
+  .slot-key {
+    color: #e0e0e0;
+    font-family: monospace;
+    font-size: 12px;
+  }
+
+  .slot-ok {
+    color: #4caf50;
+    font-weight: 700;
+    font-size: 11px;
+    margin-left: auto;
+  }
+
+  .setup-status {
+    font-weight: 600;
+    color: #888;
+    margin-top: 8px;
   }
 
   .dim {

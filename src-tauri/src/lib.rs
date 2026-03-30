@@ -152,6 +152,24 @@ fn remove_macro_button(app: tauri::AppHandle, slot: u8) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn test_macro_buttons(app: tauri::AppHandle) -> Result<(), String> {
+    // Register F13-F20 temporarily for testing (shortcuts::register_all will re-register properly)
+    use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Shortcut};
+    let gs = app.global_shortcut();
+    let test_keys = [
+        Code::F13, Code::F14, Code::F15, Code::F16,
+        Code::F17, Code::F18, Code::F19, Code::F20,
+    ];
+    for (i, code) in test_keys.iter().enumerate() {
+        let shortcut = Shortcut::new(None, *code);
+        if gs.register(shortcut).is_ok() {
+            eprintln!("Test: registered F{} for G{}", 13 + i, i + 1);
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
 fn get_device_fixes() -> Vec<devices::DeviceFix> {
     devices::get_all()
 }
@@ -209,6 +227,7 @@ pub fn run() {
             get_macro_buttons,
             set_macro_button,
             remove_macro_button,
+            test_macro_buttons,
             get_device_fixes,
             toggle_device_fix,
             get_autostart,

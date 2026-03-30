@@ -235,4 +235,15 @@ pub fn handle_shortcut(app: &AppHandle, shortcut: &Shortcut, event: ShortcutEven
             }
         }
     }
+
+    // Emit test event for unbound F13-F20 keys (for setup wizard verification)
+    for slot in 1u8..=8 {
+        let key = format!("F{}", 12 + slot);
+        if let Some(parsed) = parse_binding(&key) {
+            if shortcut == &parsed {
+                let _ = app.emit("macro-button-detected", slot);
+                return;
+            }
+        }
+    }
 }

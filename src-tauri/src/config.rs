@@ -84,8 +84,9 @@ pub enum ShortcutAction {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MacroButton {
-    pub slot: u8, // 1-8, maps to F13-F20
+    pub slot: u8,
     pub name: String,
+    pub trigger: String, // captured key binding (e.g., "F7", "F13", "Pause")
     pub action: ShortcutAction,
 }
 

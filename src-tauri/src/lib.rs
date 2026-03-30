@@ -5,7 +5,7 @@ mod popup;
 mod shortcuts;
 mod tray;
 
-use modules::keyboard::{devices, remapper};
+use modules::keyboard::{devices, keycapture, remapper};
 use tauri::{Emitter, Manager};
 
 #[tauri::command]
@@ -121,6 +121,7 @@ fn set_macro_button(
     app: tauri::AppHandle,
     slot: u8,
     name: String,
+    trigger: String,
     action: config::ShortcutAction,
 ) -> Result<(), String> {
     let mut cfg = config::load();
@@ -128,11 +129,13 @@ fn set_macro_button(
     // Update or insert
     if let Some(btn) = cfg.keyboard.macro_buttons.iter_mut().find(|b| b.slot == slot) {
         btn.name = name;
+        btn.trigger = trigger;
         btn.action = action;
     } else {
         cfg.keyboard.macro_buttons.push(config::MacroButton {
             slot,
             name,
+            trigger,
             action,
         });
     }
@@ -149,6 +152,21 @@ fn remove_macro_button(app: tauri::AppHandle, slot: u8) -> Result<(), String> {
     config::save(&cfg);
     shortcuts::register_all(&app);
     Ok(())
+}
+
+#[tauri::command]
+fn capture_key(app: tauri::AppHandle) -> Result<String, String> {
+    use tauri_plugin_global_shortcut::GlobalShortcutExt;
+    // Unregister all shortcuts temporarily so xev can see the keys
+    let _ = app.global_shortcut().unregister_all();
+
+    let key = keycapture::capture_next_key(10);
+
+    // Re-register shortcuts
+    shortcuts::register_all(&app);
+
+    let key = key?;
+    Ok(keycapture::keysym_to_binding(&key))
 }
 
 #[tauri::command]
@@ -227,6 +245,7 @@ pub fn run() {
             get_macro_buttons,
             set_macro_button,
             remove_macro_button,
+            capture_key,
             test_macro_buttons,
             get_device_fixes,
             toggle_device_fix,

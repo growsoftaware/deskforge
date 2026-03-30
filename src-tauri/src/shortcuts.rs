@@ -150,14 +150,13 @@ pub fn register_all(app: &AppHandle) {
         }
     }
 
-    // Register macro button keys (F13-F20 for slots 1-8)
+    // Register macro button triggers (learned keys)
     for btn in &cfg.keyboard.macro_buttons {
-        let key = format!("F{}", 12 + btn.slot);
-        if let Some(shortcut) = parse_binding(&key) {
+        if let Some(shortcut) = parse_binding(&btn.trigger) {
             if let Err(e) = gs.register(shortcut) {
                 eprintln!(
                     "Failed to register macro button G{} ({}): {e}",
-                    btn.slot, key
+                    btn.slot, btn.trigger
                 );
             }
         }
@@ -225,23 +224,11 @@ pub fn handle_shortcut(app: &AppHandle, shortcut: &Shortcut, event: ShortcutEven
         }
     }
 
-    // Check macro button slots (F13-F20)
+    // Check macro button triggers (learned keys)
     for btn in &cfg.keyboard.macro_buttons {
-        let key = format!("F{}", 12 + btn.slot);
-        if let Some(parsed) = parse_binding(&key) {
+        if let Some(parsed) = parse_binding(&btn.trigger) {
             if shortcut == &parsed {
                 execute_action(app, &btn.action, &cfg);
-                return;
-            }
-        }
-    }
-
-    // Emit test event for unbound F13-F20 keys (for setup wizard verification)
-    for slot in 1u8..=8 {
-        let key = format!("F{}", 12 + slot);
-        if let Some(parsed) = parse_binding(&key) {
-            if shortcut == &parsed {
-                let _ = app.emit("macro-button-detected", slot);
                 return;
             }
         }

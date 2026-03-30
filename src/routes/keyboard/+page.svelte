@@ -23,6 +23,7 @@
   interface MacroButton {
     slot: number;
     name: string;
+    trigger: string;
     action: ShortcutAction;
   }
 
@@ -58,10 +59,8 @@
   let btnText = $state("");
   let btnMethod = $state("clipboard");
   let savingBtn = $state(false);
-
-  // Setup wizard
-  let setupMode = $state(false);
-  let detectedSlots = $state<Set<number>>(new Set());
+  let btnTrigger = $state("");
+  let learningKey = $state(false);
 
   // Macro editor state
   let editing = $state(false);
@@ -121,8 +120,10 @@
   function openBtnEditor(slot: number) {
     const existing = macroButtons.find((b) => b.slot === slot);
     editingBtn = slot;
+    learningKey = false;
     if (existing) {
       btnName = existing.name;
+      btnTrigger = existing.trigger;
       const a = existing.action;
       if (a.type === "toggle_remap") {
         btnActionType = "toggle_remap";
@@ -136,6 +137,7 @@
       }
     } else {
       btnName = `G${slot}`;
+      btnTrigger = "";
       btnActionType = "paste_text";
       btnRemapId = "capslock-escape";
       btnMacroId = "";
@@ -145,8 +147,20 @@
     }
   }
 
+  async function learnKey() {
+    learningKey = true;
+    try {
+      const key = await invoke<string>("capture_key");
+      btnTrigger = key;
+    } catch (e) {
+      console.error("Key capture failed:", e);
+    } finally {
+      learningKey = false;
+    }
+  }
+
   async function saveBtnConfig() {
-    if (!btnName.trim() || editingBtn === null) return;
+    if (!btnName.trim() || !btnTrigger.trim() || editingBtn === null) return;
     savingBtn = true;
     try {
       let action: ShortcutAction;
@@ -175,6 +189,7 @@
       await invoke("set_macro_button", {
         slot: editingBtn,
         name: btnName.trim(),
+        trigger: btnTrigger.trim(),
         action,
       });
       macroButtons = await invoke<MacroButton[]>("get_macro_buttons");
@@ -298,39 +313,16 @@
     }
   }
 
-  async function startSetup() {
-    setupMode = true;
-    detectedSlots = new Set();
-    try {
-      await invoke("test_macro_buttons");
-    } catch (e) {
-      console.error("Failed to start test:", e);
-    }
-  }
-
-  function stopSetup() {
-    setupMode = false;
-    // Re-register normal shortcuts
-    loadData();
-  }
-
   onMount(() => {
     loadData();
 
-    const unlisten1 = listen<RemapStatus>("remap-changed", (event) => {
+    const unlisten = listen<RemapStatus>("remap-changed", (event) => {
       const updated = event.payload;
       remaps = remaps.map((r) => (r.id === updated.id ? updated : r));
     });
 
-    const unlisten2 = listen<number>("macro-button-detected", (event) => {
-      if (setupMode) {
-        detectedSlots = new Set([...detectedSlots, event.payload]);
-      }
-    });
-
     return () => {
-      unlisten1.then((fn) => fn());
-      unlisten2.then((fn) => fn());
+      unlisten.then((fn) => fn());
     };
   });
 </script>
@@ -413,56 +405,30 @@
   <!-- Macro Buttons Section -->
   {#if hasNuphy}
     <section class="section">
-      <div class="section-header">
-        <h3>Macro Buttons (NuPhy Field75)</h3>
-        {#if !setupMode}
-          <button class="btn-setup" onclick={startSetup}>Configurar Teclado</button>
-        {/if}
-      </div>
-
-      {#if setupMode}
-        <div class="setup-wizard">
-          <div class="setup-header">
-            <h4>Configurar G-Keys</h4>
-            <button class="btn-cancel" onclick={stopSetup}>Fechar</button>
-          </div>
-          <div class="setup-steps">
-            <p><strong>1.</strong> Abra <a href="https://drive.nuphy.io/" target="_blank">drive.nuphy.io</a> no Chrome</p>
-            <p><strong>2.</strong> Conecte o Field75 e clique "Access Authorization"</p>
-            <p><strong>3.</strong> Em <strong>CONFIGURE → KEYMAPS</strong>, selecione cada G-key</p>
-            <p><strong>4.</strong> Remapeie cada botão para a tecla correspondente:</p>
-            <div class="slot-grid">
-              {#each [1, 2, 3, 4, 5, 6, 7, 8] as slot}
-                <div class="slot-item" class:detected={detectedSlots.has(slot)}>
-                  <span class="slot-badge">G{slot}</span>
-                  <span class="slot-arrow">→</span>
-                  <span class="slot-key">F{12 + slot}</span>
-                  {#if detectedSlots.has(slot)}
-                    <span class="slot-ok">OK</span>
-                  {/if}
-                </div>
-              {/each}
-            </div>
-            <p><strong>5.</strong> Salve no NuPhyIO, depois pressione cada G-key aqui para verificar</p>
-            <p class="setup-status">
-              {detectedSlots.size}/8 verificados
-              {#if detectedSlots.size === 8}
-                — Todos configurados!
-              {/if}
-            </p>
-          </div>
-        </div>
-      {/if}
-
+      <h3>Macro Buttons (NuPhy Field75)</h3>
       <div class="card-list">
         {#each [1, 2, 3, 4, 5, 6, 7, 8] as slot}
           {@const btn = getBtnConfig(slot)}
           {#if editingBtn === slot}
             <div class="editor-card">
-              <div class="editor-title">G{slot} (F{12 + slot})</div>
+              <div class="editor-title">G{slot}</div>
               <div class="field">
                 <label for="btn-name">Nome</label>
                 <input id="btn-name" type="text" bind:value={btnName} placeholder="Ex: Toggle CapsLock" />
+              </div>
+              <div class="field">
+                <label for="btn-trigger">Tecla do botão</label>
+                <div class="trigger-row">
+                  <input id="btn-trigger" type="text" bind:value={btnTrigger} readonly placeholder="Clique Aprender e pressione o botão" />
+                  <button
+                    class="btn-record"
+                    class:recording={learningKey}
+                    onclick={learnKey}
+                    disabled={learningKey}
+                  >
+                    {learningKey ? "⏺ Pressione o botão..." : "🎯 Aprender"}
+                  </button>
+                </div>
               </div>
               <div class="field">
                 <label for="btn-action">Ação</label>
@@ -523,10 +489,10 @@
                 <div class="card-info">
                   {#if btn}
                     <span class="card-title">{btn.name}</span>
-                    <span class="card-status">{describeAction(btn.action)}</span>
+                    <span class="card-status"><kbd>{btn.trigger}</kbd> → {describeAction(btn.action)}</span>
                   {:else}
                     <span class="card-title dim">Não configurado</span>
-                    <span class="card-status">F{12 + slot}</span>
+                    <span class="card-status">Clique ⚙️ para configurar</span>
                   {/if}
                 </div>
               </div>

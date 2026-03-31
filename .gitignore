@@ -21,3 +21,10 @@ Thumbs.db
 # Environment
 .env
 .env.*
+
+# Playwright MCP
+.playwright-mcp/
+
+# QA screenshots
+*.png
+!docs/*.png

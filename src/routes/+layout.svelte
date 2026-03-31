@@ -66,9 +66,9 @@
   }
 
   .sidebar {
-    width: 200px;
-    background: #16213e;
-    border-right: 1px solid #0f3460;
+    width: 180px;
+    background: var(--mantle);
+    border-right: 1px solid var(--surface0);
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
@@ -76,14 +76,15 @@
 
   .sidebar-header {
     padding: 20px 16px 16px;
-    border-bottom: 1px solid #0f3460;
+    border-bottom: 1px solid var(--surface0);
   }
 
   .sidebar-header h1 {
-    font-size: 18px;
+    font-size: 15px;
     font-weight: 700;
-    color: #e94560;
-    letter-spacing: 0.5px;
+    color: var(--accent);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
   }
 
   .nav-list {
@@ -96,55 +97,57 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 10px 12px;
-    border-radius: 8px;
-    color: #a0a0b8;
+    padding: 9px 12px;
+    border-radius: 6px;
+    color: var(--overlay1);
     text-decoration: none;
     font-weight: 500;
+    font-size: 13px;
     transition: all 0.15s ease;
   }
 
   .nav-list a:hover {
-    background: #1a1a3e;
-    color: #e0e0e0;
+    background: var(--surface0);
+    color: var(--text);
   }
 
   .nav-list a.active {
-    background: #0f3460;
-    color: #e94560;
+    background: var(--accent-dim);
+    color: var(--accent);
   }
 
   .nav-icon {
-    font-size: 18px;
+    font-size: 16px;
   }
 
   .nav-label {
-    font-size: 14px;
+    font-size: 13px;
   }
 
   .sidebar-footer {
     padding: 12px 16px;
-    border-top: 1px solid #0f3460;
+    border-top: 1px solid var(--surface0);
   }
 
   .autostart-toggle {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 12px;
-    color: #888;
+    font-size: 11px;
+    color: var(--overlay0);
     cursor: pointer;
     margin-bottom: 8px;
   }
 
   .autostart-toggle input {
-    accent-color: #e94560;
+    accent-color: var(--accent);
     cursor: pointer;
   }
 
   .version {
-    font-size: 11px;
-    color: #555;
+    font-size: 10px;
+    color: var(--surface2);
+    font-family: inherit;
   }
 
   .content {

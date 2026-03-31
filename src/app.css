@@ -1,10 +1,34 @@
 :root {
-  font-family: "Inter", "SF Pro", "Segoe UI", system-ui, sans-serif;
-  font-size: 14px;
-  line-height: 1.5;
+  /* Catppuccin Mocha base */
+  --crust: #11111b;
+  --mantle: #181825;
+  --base: #1e1e2e;
+  --surface0: #313244;
+  --surface1: #45475a;
+  --surface2: #585b70;
+  --overlay0: #6c7086;
+  --overlay1: #7f849c;
+  --subtext0: #a6adc8;
+  --subtext1: #bac2de;
+  --text: #cdd6f4;
+
+  /* Accent — mauve (sci-fi purple) */
+  --accent: #cba6f7;
+  --accent-dim: rgba(203, 166, 247, 0.15);
+  --accent-hover: #b48ef0;
+
+  /* Semantic */
+  --green: #a6e3a1;
+  --red: #f38ba8;
+  --peach: #fab387;
+  --blue: #89b4fa;
+
+  font-family: "JetBrains Mono", "Fira Code", "SF Mono", "Cascadia Code", monospace;
+  font-size: 13px;
+  line-height: 1.6;
   font-weight: 400;
-  color: #e0e0e0;
-  background-color: #1a1a2e;
+  color: var(--text);
+  background-color: var(--base);
   -webkit-font-smoothing: antialiased;
 }
 

@@ -19,6 +19,22 @@
       command: "python3 ~/grok-media/app.py",
       terminal: true,
     },
+    {
+      id: "win11-start",
+      name: "Iniciar VM Windows",
+      description: "Iniciar a máquina virtual Windows 11 (libvirt)",
+      icon: "🖥️",
+      command: "sudo virsh --connect qemu:///system start win11",
+      terminal: true,
+    },
+    {
+      id: "win11-rdp",
+      name: "Windows Desktop",
+      description: "Conectar ao desktop Windows em tela cheia (RDP)",
+      icon: "🪟",
+      command: "xfreerdp /v:192.168.122.78 /u:krakenlab /p:Mystapler1 /cert:ignore +clipboard /dynamic-resolution /f",
+      terminal: false,
+    },
   ];
 
   let launching = $state<string | null>(null);
@@ -77,14 +93,15 @@
   }
 
   .page-header h2 {
-    font-size: 22px;
+    font-size: 18px;
     font-weight: 700;
-    color: #f0f0f0;
+    color: var(--text);
+    letter-spacing: 0.5px;
   }
 
   .subtitle {
-    color: #888;
-    font-size: 13px;
+    color: var(--overlay0);
+    font-size: 12px;
     margin-top: 4px;
   }
 
@@ -95,17 +112,17 @@
   .app-grid {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 6px;
   }
 
   .app-card {
     display: flex;
     align-items: center;
-    gap: 16px;
-    background: #16213e;
-    border: 1px solid #0f3460;
-    border-radius: 12px;
-    padding: 18px 20px;
+    gap: 14px;
+    background: var(--mantle);
+    border: 1px solid var(--surface0);
+    border-radius: 8px;
+    padding: 14px 18px;
     cursor: pointer;
     transition: all 0.15s ease;
     text-align: left;
@@ -114,17 +131,17 @@
   }
 
   .app-card:hover {
-    border-color: #e94560;
-    background: #1a2545;
+    border-color: var(--surface2);
+    background: var(--surface0);
   }
 
   .app-card:disabled {
-    opacity: 0.6;
+    opacity: 0.5;
     cursor: wait;
   }
 
   .app-icon {
-    font-size: 32px;
+    font-size: 26px;
     flex-shrink: 0;
   }
 
@@ -136,26 +153,33 @@
   }
 
   .app-name {
-    font-size: 16px;
+    font-size: 13px;
     font-weight: 600;
-    color: #f0f0f0;
+    color: var(--text);
   }
 
   .app-desc {
-    font-size: 12px;
-    color: #888;
-    margin-top: 3px;
+    font-size: 11px;
+    color: var(--overlay0);
+    margin-top: 2px;
   }
 
   .app-launch {
-    background: #e94560;
-    color: white;
+    background: var(--accent-dim);
+    color: var(--accent);
     border: none;
-    border-radius: 8px;
-    padding: 8px 16px;
-    font-size: 13px;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 11px;
     font-weight: 600;
+    font-family: inherit;
     flex-shrink: 0;
     pointer-events: none;
+    transition: all 0.15s;
+  }
+
+  .app-card:hover .app-launch {
+    background: var(--accent);
+    color: var(--crust);
   }
 </style>

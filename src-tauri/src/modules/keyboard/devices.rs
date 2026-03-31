@@ -1,6 +1,7 @@
 use serde::Serialize;
 use std::fs;
 use std::process::Command;
+use std::thread;
 
 const FNMODE_SYSFS: &str = "/sys/module/hid_apple/parameters/fnmode";
 const MODPROBE_CONF: &str = "/etc/modprobe.d/hid_apple.conf";
@@ -39,41 +40,41 @@ pub fn get_all() -> Vec<DeviceFix> {
     }]
 }
 
+/// Apply fnmode via sysfs, falling back to pkexec in a spawned thread
+fn set_fnmode(mode: &str) -> Result<(), String> {
+    if fs::write(FNMODE_SYSFS, mode).is_ok() {
+        return Ok(());
+    }
+    // pkexec in spawned thread to avoid blocking Tauri main thread
+    let cmd = format!("echo {} > {}", mode, FNMODE_SYSFS);
+    let status = thread::spawn(move || {
+        Command::new("pkexec")
+            .args(["bash", "-c", &cmd])
+            .status()
+    })
+    .join()
+    .map_err(|_| "Thread panicked".to_string())?
+    .map_err(|e| format!("Failed to run pkexec: {e}"))?;
+
+    if !status.success() {
+        return Err("Autorização negada".into());
+    }
+    Ok(())
+}
+
 /// Enable F-keys first mode (fnmode=2)
 pub fn enable_fkeys() -> Result<(), String> {
-    // Apply immediately via sysfs
-    fs::write(FNMODE_SYSFS, "2")
-        .or_else(|_| {
-            // If direct write fails (permissions), try pkexec
-            Command::new("pkexec")
-                .args(["bash", "-c", &format!("echo 2 > {FNMODE_SYSFS}")])
-                .status()
-                .map(|_| ())
-                .map_err(|e| format!("{e}"))
-        })
-        .map_err(|e| format!("Failed to set fnmode: {e}"))?;
-
-    // Make permanent
-    persist_fnmode(2)?;
-
+    set_fnmode("2")?;
+    // Persist in background (survives reboot, but non-blocking)
+    thread::spawn(|| { let _ = persist_fnmode(2); });
     Ok(())
 }
 
 /// Disable F-keys first mode (back to fnmode=1, media keys default)
 pub fn disable_fkeys() -> Result<(), String> {
-    fs::write(FNMODE_SYSFS, "1")
-        .or_else(|_| {
-            Command::new("pkexec")
-                .args(["bash", "-c", &format!("echo 1 > {FNMODE_SYSFS}")])
-                .status()
-                .map(|_| ())
-                .map_err(|e| format!("{e}"))
-        })
-        .map_err(|e| format!("Failed to set fnmode: {e}"))?;
-
-    // Make permanent
-    persist_fnmode(1)?;
-
+    set_fnmode("1")?;
+    // Persist in background
+    thread::spawn(|| { let _ = persist_fnmode(1); });
     Ok(())
 }
 
